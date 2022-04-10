@@ -19,9 +19,12 @@ FILE *logfile;                                                  //Global file po
 //int ????      = 0;                                                //[multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
 
 
-//pthread_t ???[MAX_THREADS];                                       //[multiple funct]  --> How will you track the p_thread's that you create for workers?
-//pthread_t ???[MAX_THREADS];                                       //[multiple funct]  --> How will you track the p_thread's that you create for dispatchers?
-//int ???[MAX_THREADS];                                             //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
+pthread_t workerThreads[MAX_THREADS];
+pthread_t dispatcherThreads[MAX_THREADS];
+int workerIDS[MAX_THREADS];
+int dispatcherIDS[MAX_THREADS];
+
+//                                             //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
 //pthread_t ???;                                                    //[Extra Credit A]  --> If you create a thread pool worker thread, you need to track it globally
 
 
@@ -43,10 +46,15 @@ FILE *logfile;                                                  //Global file po
 
 /* ************************ Signal Handler Code **********************************/
 void gracefulTerminationHandler(int sig_caught) {
+  
   /* TODO (D.I)
   *    Description:      Mask SIGINT signal, so the signal handler does not get interrupted (this is a best practice)
   *    Hint:             See Lab Code
   */
+
+  //if another signal occurs while in signal handler, ignore it
+  sigemptyset(&action.sa_mask);
+  signal(SIGINT, SIG_IGN);
 
   /* TODO (D.II)
   *    Description:      Print to stdout the number of pending requests in the request queue
@@ -62,6 +70,16 @@ void gracefulTerminationHandler(int sig_caught) {
   *                      pthread_cancel will be your friend here... look at the boottom of server.h for helpful functions to be able to cancel the threads
   */
 
+  // Chris - not sure if this is good enough for cancelling threads. 
+  // Just a prototype so i could move on to other stuff
+  for(int i = 0; i < num_worker; i++) {
+    pthread_cancel(workerThreads[i]);
+  }
+  for(int i = 0; i < num_worker; i++) {
+    pthread_cancel(dispatcherThreads[i]);
+  }
+  
+
   /* TODO (D.IV)
   *    Description:      Close the log file
   */
@@ -71,6 +89,9 @@ void gracefulTerminationHandler(int sig_caught) {
   *    Description:      Remove the cache by calling deleteCache IF using cache [Extra Credit B]
   */
 
+
+  // reiinstall the signal handler
+  sigaction(SIGINT, &action, NULL);
 
   /* Once you reach here, the thread join calls blocking in main will succeed and the program should terminate */
 }
@@ -202,6 +223,7 @@ void * dispatch(void *arg) {
   /* TODO (B.II)
   *    Description:      Get the id as an input argument from arg, set it to ID
   */
+  id = *((int*) arg);
   
   printf("%-30s [%3d] Started\n", "Dispatcher", id);
 
@@ -283,6 +305,7 @@ void * worker(void *arg) {
   /* TODO (C.II)
   *    Description:      Get the id as an input argument from arg, set it to ID
   */  
+  id = *((int*) arg);
 
   printf("%-30s [%3d] Started\n", "Worker", id);
 
@@ -343,13 +366,13 @@ bool validInput(int port, char * path, int dispatchers, int workers, int dyn_fla
     goodInput = false;
     printf("ERROR: Invalid port\n");
   }
-  if(dispatchers < 1 || dispatchers > MAX_THREADS) {
+  if(dispatchers < 1 || dispatchers > MAX_THREADS - workers) {
     goodInput = false;
-    printf("ERROR: Invalid # of dispatchers\n");
+    printf("ERROR: Invalid # of dispatchers (dispatchers + workers should be <= 100)\n");
   }
-  if(workers < 1 || workers > MAX_THREADS) {
+  if(workers < 1 || workers > MAX_THREADS - dispatchers) {
     goodInput = false;
-    printf("ERROR: Invalid # of workers\n");
+    printf("ERROR: Invalid # of workers (dispatchers + workers should be <= 100)\n");
   }
   if(dyn_flag != 1 && dyn_flag != 0) {
     goodInput = false;
@@ -378,6 +401,11 @@ bool validInput(int port, char * path, int dispatchers, int workers, int dyn_fla
   }
 
   return goodInput;
+}
+
+void* threadTest() {
+  printf("Thread done.\n");
+  return NULL;
 }
 
 int main(int argc, char **argv) {
@@ -471,6 +499,7 @@ int main(int argc, char **argv) {
   *    Description:      Start the server
   *    Utility Function: void init(int port); //utils.h => Line 14
   */
+  init(port);
   
 
   /* TODO (A.VIII)
@@ -479,7 +508,18 @@ int main(int argc, char **argv) {
   *                      You will want to initialize some kind of global array to pass in thread ID's
   *                      How should you track this p_thread so you can terminate it later? [global]
   */
-
+ for(int i = 0; i < num_worker; i++) {
+    dispatcherIDS[i] = i;
+    if(pthread_create(&dispatcherThreads[i], NULL, dispatch, &dispatcherIDS[i]) != 0) {
+      printf("ERROR: Failed to create dispatcher thread.\n");
+    }
+  }
+  for(int i = 0; i < num_worker; i++) {
+    workerIDS[i] = i;
+    if(pthread_create(&workerThreads[i], NULL, worker, &workerIDS[i]) != 0) {
+      printf("ERROR: Failed to create worker thread.\n");
+    }
+  }
 
   /* TODO (A.IX)
   *    Description:      Create dynamic pool manager thread (IF DYNAMIC FLAG SET) [Extra Credit A]
@@ -493,7 +533,18 @@ int main(int argc, char **argv) {
   *    Hint:             What can you call that will wait for threads to exit? How can you get threads to exit from ^C (or SIGINT)
   *                      If you are using the dynamic pool flag, you should wait for that thread to exit too
   */
-
+  for(int i = 0; i < num_worker; i++) {
+    if(pthread_join(dispatcherThreads[i], NULL) != 0) {
+      printf("ERROR: Failed to join dispatcher thread %d.\n", i);
+    }
+    printf("Dispatcher %d joined\n", i);
+  }
+ for(int i = 0; i < num_worker; i++) {
+    if(pthread_join(workerThreads[i], NULL) != 0) {
+      printf("ERROR: Failed to join worker thread %d.\n", i);
+    }
+    printf("Worker %d joined\n", i);
+  }
 
   /* SHOULD NOT HIT THIS CODE UNLESS RECEIVED SIGINT AND THREADS CLOSED */
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
