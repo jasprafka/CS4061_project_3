@@ -227,6 +227,11 @@ void * dispatch(void *arg) {
   
   printf("%-30s [%3d] Started\n", "Dispatcher", id);
 
+  request_t* request;
+  request = (request_t*)malloc(sizeof(request_t));
+  char buf[1024];
+  request->request = buf;
+
   while (1) {
 
     /* TODO (B.INTERMEDIATE SUBMISSION)
@@ -238,18 +243,26 @@ void * dispatch(void *arg) {
     *                      Print the request information using a command like this: 
     *                      printf(“Dispatcher Received Request: fd[%d] request[%s]\n”, <insert_fd>, <insert_str>); 
     */
+    
 
     /* TODO (B.III)
     *    Description:      Accept client connection
     *    Utility Function: int accept_connection(void) //utils.h => Line 24
     *    Hint:             What should happen if accept_connection returns less than 0?
     */
+    request->fd = accept_connection();
+
+    // !!!!!!!!!!!!!! THIS LINE MAY BE A STICKING POINT !!!!!!!!!!!!!!!!
+    if(request->fd < 0) continue;
 
     /* TODO (B.IV)
     *    Description:      Get request from the client
     *    Utility Function: int get_request(int fd, char *filename); //utils.h => Line 41
     *    Hint:             What should happen if get_request does not return 0?
     */
+    if(get_request(request->fd, request->request) == 0) {
+      printf("Dispatcher Received Request: fd[%d] request[%s]\n", request->fd, request->request); 
+    }
 
     /* TODO (B.V)
     *    Description:      Add the request into the queue
@@ -535,13 +548,13 @@ int main(int argc, char **argv) {
   */
   for(int i = 0; i < num_worker; i++) {
     if(pthread_join(dispatcherThreads[i], NULL) != 0) {
-      printf("ERROR: Failed to join dispatcher thread %d.\n", i);
+      printf("ERROR: Failed to join dispatcher thread %d.\n", dispatcherIDS[i]);
     }
     printf("Dispatcher %d joined\n", i);
   }
  for(int i = 0; i < num_worker; i++) {
     if(pthread_join(workerThreads[i], NULL) != 0) {
-      printf("ERROR: Failed to join worker thread %d.\n", i);
+      printf("ERROR: Failed to join worker thread %d.\n", workerIDS[i]);
     }
     printf("Worker %d joined\n", i);
   }
