@@ -65,6 +65,7 @@ void gracefulTerminationHandler(int sig_caught) {
   /* TODO (D.IV)
   *    Description:      Close the log file
   */
+  if(logfile != NULL) fclose(logfile);
 
   /* TODO (D.V)
   *    Description:      Remove the cache by calling deleteCache IF using cache [Extra Credit B]
@@ -331,6 +332,53 @@ void * worker(void *arg) {
 }
 
 /**********************************************************************************/
+bool validInput(int port, char * path, int dispatchers, int workers, int dyn_flag, int cash_flag, int q_len, int cash_sz) {
+  
+  bool goodInput = true;
+
+  // Guard conditions validating input
+  // If any input is invalid, inform the user which and 
+  // return false
+  if(port < MIN_PORT || port > MAX_PORT) {
+    goodInput = false;
+    printf("ERROR: Invalid port\n");
+  }
+  if(dispatchers < 1 || dispatchers > MAX_THREADS) {
+    goodInput = false;
+    printf("ERROR: Invalid # of dispatchers\n");
+  }
+  if(workers < 1 || workers > MAX_THREADS) {
+    goodInput = false;
+    printf("ERROR: Invalid # of workers\n");
+  }
+  if(dyn_flag != 1 && dyn_flag != 0) {
+    goodInput = false;
+    printf("ERROR: Invalid \n");
+  }
+  if(cash_flag != 1 && cash_flag != 0) {
+    goodInput = false;
+    printf("ERROR: Invalid cache flag\n");
+  }
+  if(q_len < 1 || q_len > MAX_QUEUE_LEN) {
+    goodInput = false;
+    printf("ERROR: Invalid queue length\n");
+  }
+  if(cash_sz < 1 || cash_sz > MAX_CE) {
+    goodInput = false;
+    printf("ERROR: Invalid cash size\n");
+  }
+
+  FILE *inputFile;
+  inputFile = fopen(path, "r");
+  if(inputFile == NULL) {
+    goodInput = false;
+    printf("ERROR: Invalid path\n");
+  } else {
+    fclose(inputFile);
+  }
+
+  return goodInput;
+}
 
 int main(int argc, char **argv) {
 
@@ -358,19 +406,22 @@ int main(int argc, char **argv) {
 
   /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/
 
-  /* TODO (A.I)
-  *    Description:      Get the input args --> (1) port (2) path (3) num_dispatcher (4) num_workers (5) dynamic_flag (6) cache_flag (7) queue_length (8) cache_size
-  */
+  // Get input args
+  port = strtol(argv[1], NULL, 10);
+  sprintf(path, "%s", argv[2]);
+  num_dispatcher = strtol(argv[3], NULL, 10);
+  num_worker = strtol(argv[4], NULL, 10);
+  dynamic_flag = strtol(argv[5], NULL, 10);
+  cache_flag = strtol(argv[6], NULL, 10);
+  queue_len = strtol(argv[7], NULL, 10);
+  cache_len = strtol(argv[8], NULL, 10);
 
-  /* TODO (A.II)
-  *    Description:     Perform error checks on the input arguments
-  *    Hints:           (1) port: {Should be >= MIN_PORT and <= MAX_PORT} | (2) path: {Consider checking if path exists (or wil be caught later)} 
-  *                     (3) num_dispatcher: {Should be >= 1 and <= MAX_THREADS} | (4) num_workers: {Should be >= 1 and <= MAX_THREADS}
-  *                     (5) dynamic_flag: {Should be 1 or 0} | (6) cache_flag: {Should be 1 or 0} | (7) queue_length: {Should be >= 1 and <= MAX_QUEUE_LEN}
-  *                     (8) cache_size: {Should be >= 1 and <= MAX_CE}
-  */
-
-
+  // Perform error checking on input args, terminate on bad input to
+  // make sure no stray threads get created
+  if(!validInput(port, path, num_dispatcher, num_worker, dynamic_flag, cache_flag, queue_len, cache_len)) {
+    printf("ERROR: Invalid input. Terminating.\n");
+    return -1;
+  }
 
   /********************* DO NOT REMOVE SECTION - TOP    *********************/
   printf("Arguments Verified:\n\
@@ -388,17 +439,26 @@ int main(int argc, char **argv) {
   *    Description:      Change SIGINT action for graceful termination
   *    Hint:             Implement gracefulTerminationHandler(), use global "struct sigaction action", see lab 8 for signal handlers
   */
+  action.sa_handler = gracefulTerminationHandler;
+  sigemptyset(&action.sa_mask);
+  sigaction(SIGINT, &action, NULL);
 
 
   /* TODO (A.IV)
   *    Description:      Open log file
   *    Hint:             Use Global "File* logfile", use LOG_FILE_NAME as the name, what open flags do you want?
   */
+  logfile = fopen(LOG_FILE_NAME, "a");
+  if(logfile == NULL) printf("ERROR: Unable to open log file.\n");
 
   /* TODO (A.V)
   *    Description:      Change the current working directory to server root directory
   *    Hint:             Check for error!
   */
+  if(chdir(path) != 0) {
+    printf("ERROR: Unable to access input directory. Terminating.\n");
+    return -1;
+  }
 
 
   /* TODO (A.VI)
