@@ -14,9 +14,9 @@ FILE *logfile;                                                  //Global file po
 /* ************************ Global Hints **********************************/
 
 //int ????      = 0;                                                //[Extra Credit B]  --> If using cache, how will you track which cache entry to evict from array?
-//int ????      = 0;                                                //[worker()]        --> How will you track which index in the request queue to remove next?
-//int ????      = 0;                                                //[dispatcher()]    --> How will you know where to insert the next request received into the request queue?
-//int ????      = 0;                                                //[multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
+//int queueSlot_nextReqToremove      = 0;                                                //[worker()]        --> How will you track which index in the request queue to remove next?
+//int queueSlot_nextReqReceived      = 0;                                                //[dispatcher()]    --> How will you know where to insert the next request received into the request queue?
+int numOf_reqInQueue      = 0;                                                //[multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
 
 
 pthread_t workerThreads[MAX_THREADS];
@@ -24,15 +24,18 @@ pthread_t dispatcherThreads[MAX_THREADS];
 int workerIDS[MAX_THREADS];
 int dispatcherIDS[MAX_THREADS];
 
+
 //                                             //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
 //pthread_t ???;                                                    //[Extra Credit A]  --> If you create a thread pool worker thread, you need to track it globally
 
 
 pthread_mutex_t lock   = PTHREAD_MUTEX_INITIALIZER;                //What kind of locks will you need to make everything thread safe?                                    [Hint you need multiple]
-//pthread_cond_t ???    = PTHREAD_COND_INITIALIZER;                 //What kind of conditionals will you need to signal different events (i.e. queue full, queue empty)   [Hint you need multiple]
+pthread_mutex_t logFileLock   = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t some_content    = PTHREAD_COND_INITIALIZER;                 //What kind of conditionals will you need to signal different events (i.e. queue full, queue empty)   [Hint you need multiple]
+pthread_cond_t free_slot    = PTHREAD_COND_INITIALIZER;
 
 
-//request_t ???[MAX_QUEUE_LEN];                                     //How will you track the requests globally between threads? How will you ensure this is thread safe?
+request_t reqBuffer[MAX_QUEUE_LEN];                                     //How will you track the requests globally between threads? How will you ensure this is thread safe?
 
 
 //cache_entry_t* ?????;                                             //[Extra Credit B]  --> How will you read from, add to, etc. the cache? Likely want thisto be global
@@ -59,7 +62,7 @@ void gracefulTerminationHandler(int sig_caught) {
   *    Description:      Print to stdout the number of pending requests in the request queue
   *    Hint:             How should you check the # of remaining requests? This should be a global... Set that number to num_remn_req before print
   */
-  int num_remn_req = -1;  
+  int num_remn_req = numOf_reqInQueue;  
   printf("\nGraceful Termination: There are [%d] requests left in the request queue\n", num_remn_req);
 
   /* TODO (D.III)
@@ -103,8 +106,8 @@ void * dynamic_pool_size_update(void *arg) {
 
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
   EnableThreadCancel();               //Allow thread to be asynchronously cancelled
-  /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/
-  
+  /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
+
   /* TODO (dynamic.I)
   *    Description:      Setup any cleanup handler functions to release any locks and free any memory allocated in this function
   *    Hint:             pthread_cleanup_push(pthread_lock_release,  <address_to_lock>);
@@ -210,7 +213,7 @@ void * dispatch(void *arg) {
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
   EnableThreadCancel();                                         //Allow thread to be asynchronously cancelled
   /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
-  
+
   /* TODO (B.I)
   *    Description:      Setup any cleanup handler functions to release any locks and free any memory allocated in this function
   *    Hint:             pthread_cleanup_push(pthread_lock_release,  <address_to_lock>);
@@ -232,9 +235,9 @@ void * dispatch(void *arg) {
   char buf[1024];
   request->request = buf;
 
-  pthread_cleanup_push(pthread_lock_release, &lock);  // lock cleanup handler
-  pthread_cleanup_push(pthread_mem_release, request); // memory cleanup handler
-
+  pthread_cleanup_push(pthread_lock_release, &lock); // cleanup handler
+  pthread_cleanup_push(pthread_mem_release, request); // cleanup handler
+  
   while (1) {
 
     /* TODO (B.INTERMEDIATE SUBMISSION)
@@ -274,6 +277,18 @@ void * dispatch(void *arg) {
     *                      Probably need some synchronization and some global memory... 
     *                      You cannot add onto a full queue... how should you check this? 
     */
+    
+    pthread_mutex_lock (&lock);
+     while(numOf_reqInQueue == queue_len){
+     	pthread_cond_wait (&free_slot, &lock);
+     }
+    reqBuffer[numOf_reqInQueue + 1] = *request;
+    printf("content placed in buffer slot: %i \n", numOf_reqInQueue + 1);
+    numOf_reqInQueue++;
+    printf("request = : %-80s \n", request->request);
+    pthread_cond_signal(&some_content);
+    pthread_mutex_unlock(&lock);
+    
   }
 
   /* TODO (B.VI)
@@ -308,7 +323,11 @@ void * worker(void *arg) {
   void *memory    = NULL;                                 //memory pointer where contents being requested are read and stored
   int fd          = INVALID;                              //Integer to hold the file descriptor of incoming request
   char mybuf[BUFF_SIZE];                                  //String to hold the file path from the request
-
+    
+  request_t* incomingReq;
+  incomingReq = (request_t*)malloc(sizeof(request_t));
+  incomingReq->request = mybuf;
+  
   #pragma GCC diagnostic pop                              //TODO --> Remove these before submission and fix warnings
 
   /* TODO (C.I)
@@ -322,10 +341,10 @@ void * worker(void *arg) {
   /* TODO (C.II)
   *    Description:      Get the id as an input argument from arg, set it to ID
   */  
-    id = *((int*) arg);
+  id = *((int*) arg);
    
   pthread_cleanup_push(pthread_lock_release, &lock); // cleanup handler
-
+  pthread_cleanup_push(pthread_mem_release, incomingReq); // cleanup handler
   printf("%-30s [%3d] Started\n", "Worker", id);
 
   while (1) {
@@ -338,6 +357,19 @@ void * worker(void *arg) {
     *                      IMPORTANT... if you are blocking the cancel signal... when do you re-enable it?
     */
 
+   pthread_mutex_lock (&lock);
+     while(numOf_reqInQueue == 0){
+     	pthread_cond_wait (&some_content, &lock);
+     }
+    *incomingReq = reqBuffer[numOf_reqInQueue];
+    printf("content removed from buffer slot: %i \n", numOf_reqInQueue);
+    numOf_reqInQueue--;
+    strcpy(mybuf, (char *) incomingReq->request);
+    printf("mybuf = : %-80s \n", incomingReq->request);
+    printf("mybufreal = : %-80s \n", mybuf);
+    pthread_cond_signal(&free_slot);
+    pthread_mutex_unlock(&lock);
+    
     /* TODO (C.IV)
     *    Description:      Get the data from the disk or the cache (extra credit B)
     *    Local Function:   int readFromDisk(//necessary arguments//);
@@ -360,6 +392,7 @@ void * worker(void *arg) {
     *                      You need to focus on what is returned from readFromDisk()... if this is invalid you need to handle that accordingly
     *                      This might be a good place to re-enable the cancel signal... EnableThreadCancel() [hint hint]
     */
+    EnableThreadCancel();
   }
 
   /* TODO (C.VII)
@@ -367,6 +400,7 @@ void * worker(void *arg) {
   *    Hint:             pthread_cleanup_pop(0);
   *                      Call pop for each time you call _push... the 0 flag means do not execute the cleanup handler after popping
   */
+    pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
   return NULL;
@@ -521,6 +555,7 @@ int main(int argc, char **argv) {
   */
   init(port);
   
+
   /* TODO (A.VIII)
   *    Description:      Create dispatcher and worker threads (all threads should be detachable)
   *    Hints:            Use pthread_create, you will want to store pthread's globally
