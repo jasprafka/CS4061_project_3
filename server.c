@@ -28,7 +28,7 @@ int dispatcherIDS[MAX_THREADS];
 //pthread_t ???;                                                    //[Extra Credit A]  --> If you create a thread pool worker thread, you need to track it globally
 
 
-//pthread_mutex_t ???   = PTHREAD_MUTEX_INITIALIZER;                //What kind of locks will you need to make everything thread safe?                                    [Hint you need multiple]
+pthread_mutex_t lock   = PTHREAD_MUTEX_INITIALIZER;                //What kind of locks will you need to make everything thread safe?                                    [Hint you need multiple]
 //pthread_cond_t ???    = PTHREAD_COND_INITIALIZER;                 //What kind of conditionals will you need to signal different events (i.e. queue full, queue empty)   [Hint you need multiple]
 
 
@@ -53,7 +53,6 @@ void gracefulTerminationHandler(int sig_caught) {
   */
 
   //if another signal occurs while in signal handler, ignore it
-  sigemptyset(&action.sa_mask);
   signal(SIGINT, SIG_IGN);
 
   /* TODO (D.II)
@@ -70,8 +69,8 @@ void gracefulTerminationHandler(int sig_caught) {
   *                      pthread_cancel will be your friend here... look at the boottom of server.h for helpful functions to be able to cancel the threads
   */
 
-  // Chris - not sure if this is good enough for cancelling threads. 
-  // Just a prototype so i could move on to other stuff
+
+  // prototype for canceling threads
   for(int i = 0; i < num_worker; i++) {
     pthread_cancel(workerThreads[i]);
   }
@@ -104,8 +103,8 @@ void * dynamic_pool_size_update(void *arg) {
 
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
   EnableThreadCancel();               //Allow thread to be asynchronously cancelled
-  /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
-
+  /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/
+  
   /* TODO (dynamic.I)
   *    Description:      Setup any cleanup handler functions to release any locks and free any memory allocated in this function
   *    Hint:             pthread_cleanup_push(pthread_lock_release,  <address_to_lock>);
@@ -211,12 +210,13 @@ void * dispatch(void *arg) {
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
   EnableThreadCancel();                                         //Allow thread to be asynchronously cancelled
   /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
-
+  
   /* TODO (B.I)
   *    Description:      Setup any cleanup handler functions to release any locks and free any memory allocated in this function
   *    Hint:             pthread_cleanup_push(pthread_lock_release,  <address_to_lock>);
   *                      pthread_cleanup_push(pthread_mem_release,   <address_to_mem>);   [If you are putting memory in the cache, who free's it? answer --> cache delete]
   */
+  
 
   int id = -1;
 
@@ -224,6 +224,8 @@ void * dispatch(void *arg) {
   *    Description:      Get the id as an input argument from arg, set it to ID
   */
   id = *((int*) arg);
+  
+  pthread_cleanup_push(pthread_lock_release, &lock); // cleanup handler
   
   printf("%-30s [%3d] Started\n", "Dispatcher", id);
 
@@ -278,7 +280,7 @@ void * dispatch(void *arg) {
   *    Hint:             pthread_cleanup_pop(0);
   *                      Call pop for each time you call _push... the 0 flag means do not execute the cleanup handler after popping
   */
-
+	pthread_cleanup_pop(0);
    /********************* DO NOT REMOVE SECTION - TOP     *********************/
    return NULL;
    /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
@@ -318,7 +320,9 @@ void * worker(void *arg) {
   /* TODO (C.II)
   *    Description:      Get the id as an input argument from arg, set it to ID
   */  
-  id = *((int*) arg);
+    id = *((int*) arg);
+   
+  pthread_cleanup_push(pthread_lock_release, &lock); // cleanup handler
 
   printf("%-30s [%3d] Started\n", "Worker", id);
 
@@ -361,7 +365,7 @@ void * worker(void *arg) {
   *    Hint:             pthread_cleanup_pop(0);
   *                      Call pop for each time you call _push... the 0 flag means do not execute the cleanup handler after popping
   */
-
+    pthread_cleanup_pop(0);
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
   return NULL;
   /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/
@@ -481,6 +485,7 @@ int main(int argc, char **argv) {
   *    Hint:             Implement gracefulTerminationHandler(), use global "struct sigaction action", see lab 8 for signal handlers
   */
   action.sa_handler = gracefulTerminationHandler;
+  action.sa_flags = 0;
   sigemptyset(&action.sa_mask);
   sigaction(SIGINT, &action, NULL);
 
@@ -514,7 +519,6 @@ int main(int argc, char **argv) {
   */
   init(port);
   
-
   /* TODO (A.VIII)
   *    Description:      Create dispatcher and worker threads (all threads should be detachable)
   *    Hints:            Use pthread_create, you will want to store pthread's globally
