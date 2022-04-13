@@ -225,14 +225,15 @@ void * dispatch(void *arg) {
   */
   id = *((int*) arg);
   
-  pthread_cleanup_push(pthread_lock_release, &lock); // cleanup handler
-  
   printf("%-30s [%3d] Started\n", "Dispatcher", id);
 
   request_t* request;
   request = (request_t*)malloc(sizeof(request_t));
   char buf[1024];
   request->request = buf;
+
+  pthread_cleanup_push(pthread_lock_release, &lock);  // lock cleanup handler
+  pthread_cleanup_push(pthread_mem_release, request); // memory cleanup handler
 
   while (1) {
 
