@@ -282,6 +282,7 @@ void * dispatch(void *arg) {
   *                      Call pop for each time you call _push... the 0 flag means do not execute the cleanup handler after popping
   */
 	pthread_cleanup_pop(0);
+	pthread_cleanup_pop(0);
    /********************* DO NOT REMOVE SECTION - TOP     *********************/
    return NULL;
    /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
