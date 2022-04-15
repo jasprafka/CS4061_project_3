@@ -94,7 +94,8 @@ void gracefulTerminationHandler(int sig_caught) {
 
   // reiinstall the signal handler
   sigaction(SIGINT, &action, NULL);
-
+  printf("Done with graceful termination handler..");
+  
   /* Once you reach here, the thread join calls blocking in main will succeed and the program should terminate */
 }
 /**********************************************************************************/
@@ -181,11 +182,31 @@ char* getContentType(char *mybuf) {
   *                      (See Section 5 in Project description for more details)
   *    Hint:             Need to check the end of the string passed in to check for .html, .jpg, .gif, etc.
   */
-
+  char buffer[BUFF_SIZE];
+  char* return_type;
+  strcpy(buffer, mybuf);
+  const char *delim[2] = {"/", "." };    
+  char *tokBuf[10];
+  int i;
+  tokBuf[0] = strtok(buffer, delim[1]);
+  //printf("1st token = %s \n", tokBuf[0]);
+        
+  for(i = 1; i < 21 ; i++){
+        tokBuf[i] = strtok(NULL, delim[1]);
+        //printf("token %i = %s \n", i+1, tokBuf[i]);
+        //fflush(stdout);
+        
+        if(tokBuf[i] == NULL){
+        	break;        		
+        }
+        	
+        }
+ 	
+  return_type = tokBuf[1];
   //TODO remove this line and return the actual content type
-  return NULL;
+  return return_type;
 }
-
+ 
 // Function to open and read the file from the disk into the memory
 // Add necessary arguments as needed
 int readFromDisk(int fd, char *mybuf, void **memory) {
@@ -194,15 +215,39 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
   *    Hint:             Consider printing the file path of your request, it may be interesting and you might have to do something special with it before opening
   *                      If you cannot open the file you should return INVALID, which should be handeled by worker
   */
-  
+  char path[BUFF_SIZE];
+  path[0] = '.';
+  strcat(path, mybuf);
+    
+  FILE *fp;
+  if((fp = fopen(path, "r")) == NULL){
+  	printf("Error readFromDisk cannot open the file. \n");
+  	return INVALID;
+  }
+
   /* TODO (ReadFile.II)
   *    Description:      Find the size of the file you need to read, read all of the contents into a memory location and return the file size
   *    Hint:             Using fstat or fseek could be helpful here
   *                      What do we do with files after we open them?
-  */  
+  */
+  
+  int file_size;  
+  fseek(fp, 0L, SEEK_END);
+  file_size = ftell(fp);
+  printf("size of file is: %i \n", file_size);
+   
+  memory = (void *)malloc(file_size);		// allocate memory for fread
+  int bytes_read = 0;
+  rewind(fp);		// set file position back to the start for fread
+  if((bytes_read = fread(memory,sizeof(char),file_size, fp)) == 0){   // read contents into memory
+  printf("Error reading from file fp. \n");
+  }
 
+  //printf("bytes read = %i\n", bytes_read);
+  //fflush(stdout); 
+  free(fp);
   //TODO remove this line and follow directions above
-  return INVALID;
+  return file_size;
 }
 
 /**********************************************************************************/
@@ -323,7 +368,9 @@ void * worker(void *arg) {
   void *memory    = NULL;                                 //memory pointer where contents being requested are read and stored
   int fd          = INVALID;                              //Integer to hold the file descriptor of incoming request
   char mybuf[BUFF_SIZE];                                  //String to hold the file path from the request
-    
+  char* content_type;
+  char getReqBuf[BUFF_SIZE];  
+  
   request_t* incomingReq;
   incomingReq = (request_t*)malloc(sizeof(request_t));
   incomingReq->request = mybuf;
@@ -345,6 +392,7 @@ void * worker(void *arg) {
    
   pthread_cleanup_push(pthread_lock_release, &lock); // cleanup handler
   pthread_cleanup_push(pthread_mem_release, incomingReq); // cleanup handler
+  pthread_cleanup_push(pthread_mem_release, memory); // cleanup handler
   printf("%-30s [%3d] Started\n", "Worker", id);
 
   while (1) {
@@ -363,10 +411,10 @@ void * worker(void *arg) {
      }
     *incomingReq = reqBuffer[numOf_reqInQueue];
     printf("content removed from buffer slot: %i \n", numOf_reqInQueue);
+    num_request = numOf_reqInQueue;
     numOf_reqInQueue--;
     strcpy(mybuf, (char *) incomingReq->request);
-    printf("mybuf = : %-80s \n", incomingReq->request);
-    printf("mybufreal = : %-80s \n", mybuf);
+    printf("mybuf = : %-80s \n", mybuf);
     pthread_cond_signal(&free_slot);
     pthread_mutex_unlock(&lock);
     
@@ -376,6 +424,30 @@ void * worker(void *arg) {
     *                      int getCacheIndex(char *request);  //[Extra Credit B]
     *                      void addIntoCache(char *mybuf, char *memory , int memory_size);  //[Extra Credit B]
     */
+    
+    
+    fd = incomingReq->fd;
+    
+    
+    char path[BUFF_SIZE];
+    path[0] = '.';
+    strcat(path, mybuf);
+ 
+    int get_req_stat = 0;
+    printf(" getReqMybuf = %s\n", getReqBuf);
+    printf(" fd = %i\n", fd);  
+    if((get_req_stat = get_request(fd, getReqBuf)) != 0){
+    	printf("Get request returned: %i\n", get_req_stat);
+  	printf("Get request returned INVALID..\n");
+
+    }
+    printf(" getReqMybuf = %s\n", mybuf);
+    printf(" fd = %i\n", fd);
+    
+    
+    if((filesize = readFromDisk(fd, mybuf, memory)) == INVALID){
+    // deal with invalid situation --> exit thread but not the program
+    }
 
     /* TODO (C.V)
     *    Description:      Log the request into the file and terminal
@@ -383,7 +455,18 @@ void * worker(void *arg) {
     *    Hint:             Call LogPrettyPrint with to_write = NULL which will print to the terminal
     *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
     */
-
+    
+  /*
+  char log[50] = {"./webserver_log.txt"};
+  FILE *fp;
+  if((fp = fopen(log, "w")) == NULL){
+  	printf("Error worker cannot open the file. \n");
+  }
+  //LogPrettyPrint(fp, id, num_request, fd, incomingReq->request, filesize, 0);
+  LogPrettyPrint(NULL, id, num_request, fd, incomingReq->request, filesize, 0);
+  free(fp);
+  printf("done");
+  */
     /* TODO (C.VI)
     *    Description:      Get the content type and return the result or error
     *    Utility Function: (1) int return_result(int fd, char *content_type, char *buf, int numbytes); //utils.h => Line 63
@@ -393,6 +476,16 @@ void * worker(void *arg) {
     *                      This might be a good place to re-enable the cancel signal... EnableThreadCancel() [hint hint]
     */
     EnableThreadCancel();
+    content_type = getContentType(mybuf);
+    printf("content type = %s\n", content_type);
+    
+    /*
+    int return_res = 0;
+    if((return_res = return_result(fd, content_type, memory, filesize)) == 0){
+    //success
+    } else {printf("return result failed\n");}
+    */
+    
   }
 
   /* TODO (C.VII)
@@ -400,6 +493,7 @@ void * worker(void *arg) {
   *    Hint:             pthread_cleanup_pop(0);
   *                      Call pop for each time you call _push... the 0 flag means do not execute the cleanup handler after popping
   */
+    pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
   /********************* DO NOT REMOVE SECTION - TOP     *********************/
