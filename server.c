@@ -14,9 +14,9 @@ FILE *logfile;                                                  //Global file po
 /* ************************ Global Hints **********************************/
 
 //int ????      = 0;                                                //[Extra Credit B]  --> If using cache, how will you track which cache entry to evict from array?
-//int queueSlot_nextReqToremove      = 0;                                                //[worker()]        --> How will you track which index in the request queue to remove next?
-//int queueSlot_nextReqReceived      = 0;                                                //[dispatcher()]    --> How will you know where to insert the next request received into the request queue?
-int numOf_reqInQueue      = 0;                                                //[multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
+int queueSlot_nextReqToremove      = 0;       //[worker()]        --> How will you track which index in the request queue to remove next?
+int queueSlot_nextReqReceived      = 0;       //[dispatcher()]    --> How will you know where to insert the next request received into the request queue?
+int numOf_reqInQueue               = 0;       //[multiple funct]  --> How will you update and utilize the current number of requests in the request queue?
 
 
 pthread_t workerThreads[MAX_THREADS];
@@ -24,21 +24,14 @@ pthread_t dispatcherThreads[MAX_THREADS];
 int workerIDS[MAX_THREADS];
 int dispatcherIDS[MAX_THREADS];
 
-
-//                                             //[multiple funct]  --> Might be helpful to track the ID's of your threads in a global array
-//pthread_t ???;                                                    //[Extra Credit A]  --> If you create a thread pool worker thread, you need to track it globally
-
-
-pthread_mutex_t lock   = PTHREAD_MUTEX_INITIALIZER;                //What kind of locks will you need to make everything thread safe?                                    [Hint you need multiple]
+pthread_mutex_t lock   = PTHREAD_MUTEX_INITIALIZER;                //What kind of locks will you need to make everything thread safe?  [Hint you need multiple]
 pthread_mutex_t logFileLock   = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t some_content    = PTHREAD_COND_INITIALIZER;                 //What kind of conditionals will you need to signal different events (i.e. queue full, queue empty)   [Hint you need multiple]
 pthread_cond_t free_slot    = PTHREAD_COND_INITIALIZER;
 
 
-request_t reqBuffer[MAX_QUEUE_LEN];                                     //How will you track the requests globally between threads? How will you ensure this is thread safe?
+request_t * reqBuffer[MAX_QUEUE_LEN];                                     //How will you track the requests globally between threads? How will you ensure this is thread safe?
 
-
-//cache_entry_t* ?????;                                             //[Extra Credit B]  --> How will you read from, add to, etc. the cache? Likely want thisto be global
 
 /**********************************************************************************/
 
@@ -56,6 +49,8 @@ void gracefulTerminationHandler(int sig_caught) {
   */
 
   //if another signal occurs while in signal handler, ignore it
+  // not sure which of the following 2 lines is the right one
+  // sigemptyset(&action.sa_mask); 
   signal(SIGINT, SIG_IGN);
 
   /* TODO (D.II)
@@ -68,8 +63,6 @@ void gracefulTerminationHandler(int sig_caught) {
   /* TODO (D.III)
   *    Description:      Terminate Server by closing threads, need to close threads before we do other cleanup
   *    Hint:             How should you handle running threads? How will the main function exit once you take care of threads?
-  *                      If you are using the dynamic pool thread, you should stop that thread [Extra Credit A]
-  *                      pthread_cancel will be your friend here... look at the boottom of server.h for helpful functions to be able to cancel the threads
   */
 
 
@@ -87,92 +80,14 @@ void gracefulTerminationHandler(int sig_caught) {
   */
   if(logfile != NULL) fclose(logfile);
 
-  /* TODO (D.V)
-  *    Description:      Remove the cache by calling deleteCache IF using cache [Extra Credit B]
-  */
-
-
   // reiinstall the signal handler
   sigaction(SIGINT, &action, NULL);
-  printf("Done with graceful termination handler..");
+  printf("Done with graceful termination handler.\n");
   
   /* Once you reach here, the thread join calls blocking in main will succeed and the program should terminate */
 }
 /**********************************************************************************/
 
-/* ******************** Dynamic Pool Code  [Extra Credit A] **********************/
-// Function implements the policy to change the worker thread pool dynamically
-// depending on the number of requests
-void * dynamic_pool_size_update(void *arg) {
-
-  /********************* DO NOT REMOVE SECTION - TOP     *********************/
-  EnableThreadCancel();               //Allow thread to be asynchronously cancelled
-  /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
-
-  /* TODO (dynamic.I)
-  *    Description:      Setup any cleanup handler functions to release any locks and free any memory allocated in this function
-  *    Hint:             pthread_cleanup_push(pthread_lock_release,  <address_to_lock>);
-  *                      pthread_cleanup_push(pthread_mem_release,   <address_to_mem>);
-  */
-
-  int id = -1;
-
-  /* TODO (dynamic.II)
-  *    Description:      Get the id as an input argument from arg, set it to ID
-  */
-
-  printf("%-30s [%3d] Started\n", "Dynamic Pool Thread", id);
-
-  while(1) {
-    /* TODO (dynamic.III)
-    *    Description:      Run at regular intervals
-    *                      Increase / decrease dynamically based on your policy
-    *    Hint:             There will be limited help provided from TA's and professors here... Designed to be a challenge
-    *                      Make sure this code is not run when the dynamic flag is 0
-    */
-  }
-
-  /* TODO (dynamic.IV)
-  *    Description:      pop any cleanup handlers that were pushed onto the queue otherwise you will get compile errors
-  *    Hint:             pthread_cleanup_pop(0);
-  *                      Call pop for each time you call _push... the 0 flag means do not execute the cleanup handler after popping
-  */
-}
-/**********************************************************************************/
-
-/* ************************ Cache Code [Extra Credit B] **************************/
-
-// Function to check whether the given request is present in cache
-int getCacheIndex(char *request){
-  /* TODO (GET CACHE INDEX)
-  *    Description:      return the index if the request is present in the cache otherwise return INVALID
-  */
-  return INVALID;    
-}
-
-// Function to add the request and its file content into the cache
-void addIntoCache(char *mybuf, char *memory , int memory_size){
-  /* TODO (ADD CACHE)
-  *    Description:      It should add the request at an index according to the cache replacement policy
-  *                      Make sure to allocate/free memory when adding or replacing cache entries
-  */
-}
-
-// Function to clear the memory allocated to the cache
-void deleteCache(){
-  /* TODO (CACHE)
-  *    Description:      De-allocate/free the cache memory
-  */
-}
-
-// Function to initialize the cache
-void initCache(){
-  /* TODO (CACHE)
-  *    Description:      Allocate and initialize an array of cache entries of length cache size
-  */
-}
-
-/**********************************************************************************/
 
 /* ************************************ Utilities ********************************/
 // Function to get the content type from the request
@@ -182,47 +97,42 @@ char* getContentType(char *mybuf) {
   *                      (See Section 5 in Project description for more details)
   *    Hint:             Need to check the end of the string passed in to check for .html, .jpg, .gif, etc.
   */
-  char buffer[BUFF_SIZE];
-  char* return_type;
-  strcpy(buffer, mybuf);
-  const char *delim[2] = {"/", "." };    
-  char *tokBuf[10];
-  int i;
-  tokBuf[0] = strtok(buffer, delim[1]);
-  //printf("1st token = %s \n", tokBuf[0]);
-        
-  for(i = 1; i < 21 ; i++){
-        tokBuf[i] = strtok(NULL, delim[1]);
-        //printf("token %i = %s \n", i+1, tokBuf[i]);
-        //fflush(stdout);
-        
-        if(tokBuf[i] == NULL){
-        	break;        		
-        }
-        	
-        }
- 	
-  return_type = tokBuf[1];
-  //TODO remove this line and return the actual content type
-  return return_type;
+  char * contentType;
+
+  if(strstr(mybuf, ".htm") != NULL) {
+    contentType = (char*)malloc(10);
+    strcpy(contentType, "text/html");
+  }  else if (strstr(mybuf, ".jpg") != NULL) {
+    contentType = (char*)malloc(11);
+    strcpy(contentType, "image/jpeg");
+  } else if (strstr(mybuf, ".gif") != NULL) {
+    contentType = (char*)malloc(10);
+    strcpy(contentType, "image/gif");
+  } else {
+    contentType = (char*)malloc(11);
+    strcpy(contentType, "text/plain");
+  }
+  
+  return contentType;
 }
  
 // Function to open and read the file from the disk into the memory
 // Add necessary arguments as needed
-int readFromDisk(int fd, char *mybuf, void **memory) {
+char * readFromDisk(int fd, char *mybuf, int * bytesRead) {
   /* TODO (ReadFile.I)
   *    Description:      Try and open requested file, return INVALID if you cannot meaning error
   *    Hint:             Consider printing the file path of your request, it may be interesting and you might have to do something special with it before opening
   *                      If you cannot open the file you should return INVALID, which should be handeled by worker
   */
+  char * memory;
   char path[BUFF_SIZE];
-  path[0] = '.';
+  strcpy(path, ".");
   strcat(path, mybuf);
     
   FILE *fp;
   if((fp = fopen(path, "r")) == NULL){
   	printf("Error readFromDisk cannot open the file. \n");
-  	return INVALID;
+  	return NULL;
   }
 
   /* TODO (ReadFile.II)
@@ -235,19 +145,18 @@ int readFromDisk(int fd, char *mybuf, void **memory) {
   fseek(fp, 0L, SEEK_END);
   file_size = ftell(fp);
   printf("size of file is: %i \n", file_size);
+  *bytesRead = file_size;
+  
    
-  memory = (void *)malloc(file_size);		// allocate memory for fread
+  memory = (char *)malloc(file_size);		// allocate memory for fread
   int bytes_read = 0;
   rewind(fp);		// set file position back to the start for fread
-  if((bytes_read = fread(memory,sizeof(char),file_size, fp)) == 0){   // read contents into memory
-  printf("Error reading from file fp. \n");
+  if((bytes_read = fread(memory, sizeof(char),file_size, fp)) == 0){   // read contents into memory
+    printf("Error reading from file fp. \n");
   }
 
-  //printf("bytes read = %i\n", bytes_read);
-  //fflush(stdout); 
-  free(fp);
-  //TODO remove this line and follow directions above
-  return file_size;
+  fclose(fp);
+  return memory;
 }
 
 /**********************************************************************************/
@@ -284,18 +193,6 @@ void * dispatch(void *arg) {
   pthread_cleanup_push(pthread_mem_release, request); // cleanup handler
   
   while (1) {
-
-    /* TODO (B.INTERMEDIATE SUBMISSION)
-    *    Description:      Receive a single request and print the conents of that request
-    *                      The TODO's below are for the full submission, you do not have to use a 
-    *                      buffer to receive a single request 
-    *    Hint:             Helpful Functions: int accept_connection(void) | int get_request(int fd, char *filename
-    *                      Recommend using the request_t structure from server.h to store the request
-    *                      Print the request information using a command like this: 
-    *                      printf(“Dispatcher Received Request: fd[%d] request[%s]\n”, <insert_fd>, <insert_str>); 
-    */
-    
-
     /* TODO (B.III)
     *    Description:      Accept client connection
     *    Utility Function: int accept_connection(void) //utils.h => Line 24
@@ -313,6 +210,8 @@ void * dispatch(void *arg) {
     */
     if(get_request(request->fd, request->request) == 0) {
       printf("Dispatcher Received Request: fd[%d] request[%s]\n", request->fd, request->request); 
+    } else {
+      continue;
     }
 
     /* TODO (B.V)
@@ -323,14 +222,18 @@ void * dispatch(void *arg) {
     *                      You cannot add onto a full queue... how should you check this? 
     */
     
+    // lock to ensure thread safety
     pthread_mutex_lock (&lock);
-     while(numOf_reqInQueue == queue_len){
+    // wait until available space in the queue
+    while(numOf_reqInQueue == queue_len){
      	pthread_cond_wait (&free_slot, &lock);
-     }
-    reqBuffer[numOf_reqInQueue + 1] = *request;
-    printf("content placed in buffer slot: %i \n", numOf_reqInQueue + 1);
+    }
+    // insert request into next available buffer slot
+    reqBuffer[queueSlot_nextReqReceived] = request;
+
+    //increment pointer to next available queue slot, wrapping if at end of buffer
+    queueSlot_nextReqReceived = (queueSlot_nextReqReceived == MAX_QUEUE_LEN) ? 0 : queueSlot_nextReqReceived + 1;
     numOf_reqInQueue++;
-    printf("request = : %-80s \n", request->request);
     pthread_cond_signal(&some_content);
     pthread_mutex_unlock(&lock);
     
@@ -343,9 +246,9 @@ void * dispatch(void *arg) {
   */
 	pthread_cleanup_pop(0);
 	pthread_cleanup_pop(0);
-   /********************* DO NOT REMOVE SECTION - TOP     *********************/
-   return NULL;
-   /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
+  /********************* DO NOT REMOVE SECTION - TOP     *********************/
+  return NULL;
+  /********************* DO NOT REMOVE SECTION - BOTTOM  *********************/ 
 }
 
 /**********************************************************************************/
@@ -362,18 +265,16 @@ void * worker(void *arg) {
   
 
   // Helpful/Suggested Declaration
-  int num_request = 0;                                    //Integer for tracking each request for printing into the log
-  bool cache_hit  = false;                                //Boolean flag for tracking cache hits or misses if doing [Extra Credit B]
-  int filesize    = 0;                                    //Integer for holding the file size returned from readFromDisk or the cache
-  void *memory    = NULL;                                 //memory pointer where contents being requested are read and stored
-  int fd          = INVALID;                              //Integer to hold the file descriptor of incoming request
-  char mybuf[BUFF_SIZE];                                  //String to hold the file path from the request
+  int num_request = 0;        //Integer for tracking each request for printing into the log
+  int filesize    = 0;        //Integer for holding the file size returned from readFromDisk or the cache
+  char *memory    = NULL;     //memory pointer where contents being requested are read and stored
+  int fd          = INVALID;  //Integer to hold the file descriptor of incoming request
+  char mybuf[BUFF_SIZE];      //String to hold the file path from the request
   char* content_type;
-  char getReqBuf[BUFF_SIZE];  
+  char getReqBuf[BUFF_SIZE];
+  char * error = "ERROR: Invalid file read";
   
   request_t* incomingReq;
-  incomingReq = (request_t*)malloc(sizeof(request_t));
-  incomingReq->request = mybuf;
   
   #pragma GCC diagnostic pop                              //TODO --> Remove these before submission and fix warnings
 
@@ -404,49 +305,32 @@ void * worker(void *arg) {
     *                      IMPORTANT... if you are processing a request you cannot be cancelled... how do you block being cancelled? (see BlockCancelSignal()--> server.h) 
     *                      IMPORTANT... if you are blocking the cancel signal... when do you re-enable it?
     */
-
-   pthread_mutex_lock (&lock);
-     while(numOf_reqInQueue == 0){
+    
+    pthread_mutex_lock (&lock);
+    while(numOf_reqInQueue == 0){
      	pthread_cond_wait (&some_content, &lock);
-     }
-    *incomingReq = reqBuffer[numOf_reqInQueue];
-    printf("content removed from buffer slot: %i \n", numOf_reqInQueue);
-    num_request = numOf_reqInQueue;
+    }
+    BlockCancelSignal();
+    incomingReq = reqBuffer[queueSlot_nextReqToremove];
+    num_request++;
+    queueSlot_nextReqToremove = (queueSlot_nextReqToremove == MAX_QUEUE_LEN) ? 0 : queueSlot_nextReqToremove + 1;
     numOf_reqInQueue--;
-    strcpy(mybuf, (char *) incomingReq->request);
-    printf("mybuf = : %-80s \n", mybuf);
+
+    fd = incomingReq->fd;
+    strcpy(mybuf, incomingReq->request);
+    printf("%s\n", mybuf);
+    
     pthread_cond_signal(&free_slot);
     pthread_mutex_unlock(&lock);
     
     /* TODO (C.IV)
-    *    Description:      Get the data from the disk or the cache (extra credit B)
+    *    Description:      Get the data from the disk
     *    Local Function:   int readFromDisk(//necessary arguments//);
-    *                      int getCacheIndex(char *request);  //[Extra Credit B]
-    *                      void addIntoCache(char *mybuf, char *memory , int memory_size);  //[Extra Credit B]
     */
-    
-    
-    fd = incomingReq->fd;
-    
-    
-    char path[BUFF_SIZE];
-    path[0] = '.';
-    strcat(path, mybuf);
- 
-    int get_req_stat = 0;
-    printf(" getReqMybuf = %s\n", getReqBuf);
-    printf(" fd = %i\n", fd);  
-    if((get_req_stat = get_request(fd, getReqBuf)) != 0){
-    	printf("Get request returned: %i\n", get_req_stat);
-  	printf("Get request returned INVALID..\n");
-
-    }
-    printf(" getReqMybuf = %s\n", mybuf);
-    printf(" fd = %i\n", fd);
-    
-    
-    if((filesize = readFromDisk(fd, mybuf, memory)) == INVALID){
-    // deal with invalid situation --> exit thread but not the program
+    if((memory = readFromDisk(fd, mybuf, &filesize)) == NULL){
+      printf("ERROR: Invalid file read (id: %d).\n", id);
+      return_error(fd, "ERROR: Invalid file read");
+      pthread_exit(NULL); // deal with invalid situation --> exit thread but not the program
     }
 
     /* TODO (C.V)
@@ -456,17 +340,17 @@ void * worker(void *arg) {
     *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
     */
     
-  /*
-  char log[50] = {"./webserver_log.txt"};
-  FILE *fp;
-  if((fp = fopen(log, "w")) == NULL){
-  	printf("Error worker cannot open the file. \n");
-  }
-  //LogPrettyPrint(fp, id, num_request, fd, incomingReq->request, filesize, 0);
-  LogPrettyPrint(NULL, id, num_request, fd, incomingReq->request, filesize, 0);
-  free(fp);
-  printf("done");
-  */
+    pthread_mutex_lock (&lock);
+    char log[50] = {"./webserver_log.txt"};
+    FILE *fp;
+    if((fp = fopen(log, "a")) == NULL){
+  	  printf("Error worker cannot open the file. \n");
+    }
+    // LogPrettyPrint(fp, id, num_request, fd, incomingReq->request, filesize, 0);
+    LogPrettyPrint(NULL, id, num_request, fd, incomingReq->request, filesize, 0);
+    fclose(fp);
+    pthread_mutex_unlock(&lock);
+  
     /* TODO (C.VI)
     *    Description:      Get the content type and return the result or error
     *    Utility Function: (1) int return_result(int fd, char *content_type, char *buf, int numbytes); //utils.h => Line 63
@@ -476,16 +360,20 @@ void * worker(void *arg) {
     *                      This might be a good place to re-enable the cancel signal... EnableThreadCancel() [hint hint]
     */
     EnableThreadCancel();
-    content_type = getContentType(mybuf);
-    printf("content type = %s\n", content_type);
+
     
-    /*
+    content_type = getContentType(mybuf);
+
     int return_res = 0;
     if((return_res = return_result(fd, content_type, memory, filesize)) == 0){
-    //success
-    } else {printf("return result failed\n");}
-    */
+      printf("returned result successfully\n");
+    } else {
+      printf("return result failed %s\n", error);
+    }
     
+    free(content_type);
+    content_type = NULL;
+
   }
 
   /* TODO (C.VII)
@@ -637,12 +525,6 @@ int main(int argc, char **argv) {
   }
 
 
-  /* TODO (A.VI)
-  *    Description:      Initialize cache (IF CACHE FLAG SET) (extra credit B)
-  *    Local Function:   void    initCache();
-  */
-
-
   /* TODO (A.VII)
   *    Description:      Start the server
   *    Utility Function: void init(int port); //utils.h => Line 14
@@ -668,12 +550,6 @@ int main(int argc, char **argv) {
       printf("ERROR: Failed to create worker thread.\n");
     }
   }
-
-  /* TODO (A.IX)
-  *    Description:      Create dynamic pool manager thread (IF DYNAMIC FLAG SET) [Extra Credit A]
-  *    Hint:             Dynamic pool manager is a thread, it's ID should be DYNAM_POOL_TID
-  *                      How should you track this p_thread so you can terminate it later? [global]
-  */
 
 
   /* TODO (A.X)
