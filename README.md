@@ -5,11 +5,9 @@ Names:
 Jacob Sprafka (spraf013@umn.edu) and Christopher Schumacher (schum865@umn.edu)
 
 Test Machine:
-
 csel-kh1260-03.cselabs.umn.edu
 
 Date:
-
 4/18/2022
 
 Purpose of this Program:
@@ -41,7 +39,6 @@ Example-
 wget http://127.0.0.1:2000/image/jpg/29.jpg
 
 Contributions of each team member:
-
 
 Intermediate Submission:
 
