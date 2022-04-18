@@ -42,13 +42,14 @@ wget http://127.0.0.1:2000/image/jpg/29.jpg
 
 Contributions of each team member:
 
-Intermediate Submission
+
+Intermediate Submission:
 
 TerminationHandler - Jacob
 
 Dispatcher - Jacob
 
-Final Submission
+Final Submission:
 
 Dispatcher - Jacob / Chris 
 
