@@ -49,8 +49,6 @@ void gracefulTerminationHandler(int sig_caught) {
   */
 
   //if another signal occurs while in signal handler, ignore it
-  // not sure which of the following 2 lines is the right one
-  // sigemptyset(&action.sa_mask); 
   signal(SIGINT, SIG_IGN);
 
   /* TODO (D.II)
@@ -66,7 +64,7 @@ void gracefulTerminationHandler(int sig_caught) {
   */
 
 
-  // prototype for canceling threads
+  // Wait for all threads to cancel
   for(int i = 0; i < num_worker; i++) {
     pthread_cancel(workerThreads[i]);
   }
@@ -292,6 +290,7 @@ void * worker(void *arg) {
   id = *((int*) arg);
    
   pthread_cleanup_push(pthread_lock_release, &lock); // cleanup handler
+  pthread_cleanup_push(pthread_lock_release, &logFileLock); // cleanup handler
   pthread_cleanup_push(pthread_mem_release, incomingReq); // cleanup handler
   pthread_cleanup_push(pthread_mem_release, memory); // cleanup handler
   printf("%-30s [%3d] Started\n", "Worker", id);
@@ -340,16 +339,15 @@ void * worker(void *arg) {
     *                      You will need to lock and unlock the logfile to write to it in a thread safe manor
     */
     
-    pthread_mutex_lock (&lock);
+    pthread_mutex_lock (&logFileLock);
     char log[50] = {"./webserver_log.txt"};
-    FILE *fp;
-    if((fp = fopen(log, "a")) == NULL){
+    if((logfile = fopen(log, "a")) == NULL){
   	  printf("Error worker cannot open the file. \n");
     }
-    // LogPrettyPrint(fp, id, num_request, fd, incomingReq->request, filesize, 0);
+    LogPrettyPrint(logfile, id, num_request, fd, incomingReq->request, filesize, 0);
     LogPrettyPrint(NULL, id, num_request, fd, incomingReq->request, filesize, 0);
-    fclose(fp);
-    pthread_mutex_unlock(&lock);
+    fclose(logfile);
+    pthread_mutex_unlock(&logFileLock);
   
     /* TODO (C.VI)
     *    Description:      Get the content type and return the result or error
@@ -381,6 +379,7 @@ void * worker(void *arg) {
   *    Hint:             pthread_cleanup_pop(0);
   *                      Call pop for each time you call _push... the 0 flag means do not execute the cleanup handler after popping
   */
+    pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
     pthread_cleanup_pop(0);
