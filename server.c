@@ -49,8 +49,6 @@ void gracefulTerminationHandler(int sig_caught) {
   */
 
   //if another signal occurs while in signal handler, ignore it
-  // not sure which of the following 2 lines is the right one
-  // sigemptyset(&action.sa_mask); 
   signal(SIGINT, SIG_IGN);
 
   /* TODO (D.II)
